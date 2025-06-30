@@ -3,6 +3,8 @@
 A visual workflow editor for LangGraph that generates **TypeScript code**. This is a TypeScript port of the original [langgraph-editor](https://github.com/Erickrus/langgraph-editor) by Erickrus.
 **This editor generates TypeScript code for LangGraph workflows.**
 
+![LangGraph Editor Interface](https://github.com/user-attachments/assets/2cff15b5-f294-4730-bb47-f84c2633c5ed)
+
 ## Features
 
 - **Visual Workflow Editor**: Drag-and-drop interface using LiteGraph.js
