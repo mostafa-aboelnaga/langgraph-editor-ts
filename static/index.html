@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="cache-control" content="max-age=0" />
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta http-equiv="expires" content="0" />
+    <meta http-equiv="expires" content="Tue, 01 Jan 1980 1:00:00 GMT" />
+    <meta http-equiv="pragma" content="no-cache" />
+
+    <title>LangGraph Editor - TypeScript</title>
+
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://unpkg.com/litegraph.js@0.7.5/css/litegraph.css"
+    />
+
+    <style>
+      .graphdialog textarea {
+        margin: 3px;
+        min-width: 60px;
+        min-height: 1.5em;
+        background-color: black;
+        border: 0;
+        color: white;
+        padding-left: 10px;
+        outline: none;
+        height: 320px;
+        width: 640px;
+      }
+
+      .litegraph-editor {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #f0f0f0;
+        color: #eee;
+        font: 14px Tahoma;
+        position: relative;
+      }
+
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        margin: 0px;
+      }
+
+      canvas {
+        display: block;
+        border: 0px solid;
+      }
+    </style>
+
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/litegraph.js@0.7.5/build/litegraph.js"
+    ></script>
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.min.js"
+      integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+      crossorigin="anonymous"
+    ></script>
+
+    <script>
+      function LitegraphApi() {
+        this.saveCode = function (code) {
+          console.log('LitegraphApi.saveCode()');
+          $.post(
+            '/api/saveCode',
+            {
+              code: code,
+            },
+            function (returnedData) {
+              console.log('LitegraphApi.saveCode.response()');
+              console.log(returnedData);
+            },
+            'json',
+          );
+        };
+        this.saveWorkflow = function (workflowName) {
+          console.log('LitegraphApi.saveWorkflow()');
+          $.post(
+            '/api/saveWorkflow',
+            {
+              json: JSON.stringify({
+                workflow: graph.serialize(),
+                workflowName: workflowName,
+              }),
+            },
+            function (returnedData) {
+              console.log('LitegraphApi.saveWorkflow.response()');
+              console.log(returnedData);
+            },
+            'json',
+          );
+        };
+        this.loadWorkflow = function (workflowName) {
+          console.log('LitegraphApi.loadWorkflow()');
+          $.post(
+            '/api/loadWorkflow',
+            {
+              json: JSON.stringify({ workflowName: workflowName }),
+            },
+            function (returnedData) {
+              console.log('LitegraphApi.loadWorkflow.response()');
+              console.log(returnedData);
+              graph.configure(returnedData['workflow']);
+            },
+            'json',
+          );
+        };
+      }
+
+      var litegraphApi = new LitegraphApi();
+
+      const defaultTypeScriptDefinition = `function tsNode(state: any): any {
+    const question = state.question || '';
+    const result = process(question);
+    return { result };
+}`;
+
+      function LangGraphNode() {
+        LiteGraph.LGraphNode.call(this);
+        const self = this;
+
+        this.addInput('input', 'StateDict');
+        this.addOutput('output', 'StateDict');
+
+        this.addProperty('name', 'ts_node', 'string');
+
+        this.name = this.addWidget('text', 'name', 'ts_node', function (v) {
+          self.properties.name = v;
+        });
+
+        this.title = 'LangGraph Node';
+        this.desc = 'Custom Node with Definition';
+
+        this.additionalOutputs = 1;
+        this.additionalInputs = 1;
+      }
+
+      LangGraphNode.prototype = Object.create(LiteGraph.LGraphNode.prototype);
+
+      LangGraphNode.prototype.addOutputPort = function () {
+        this.additionalOutputs++;
+        this.addOutput('output_' + this.additionalOutputs, 'StateDict');
+        this.configure(this.serialize());
+      };
+
+      LangGraphNode.prototype.removeOutputPort = function () {
+        if (this.additionalOutputs > 1) {
+          this.removeOutput(this.outputs.length - 1);
+          this.additionalOutputs--;
+          this.configure(this.serialize());
+        }
+      };
+
+      LangGraphNode.prototype.addInputPort = function () {
+        this.additionalInputs++;
+        this.addInput('input_' + this.additionalInputs, 'StateDict');
+        this.configure(this.serialize());
+      };
+
+      LangGraphNode.prototype.removeInputPort = function () {
+        if (this.additionalInputs > 1) {
+          this.removeInput(this.inputs.length - 1);
+          this.additionalInputs--;
+          this.configure(this.serialize());
+        }
+      };
+
+      LiteGraph.registerNodeType('langgraph/LangGraphNode', LangGraphNode);
+
+      function LangGraphConditionalNode() {
+        LiteGraph.LGraphNode.call(this);
+
+        const self = this;
+
+        this.addInput('input_1', 'StateDict');
+        this.addOutput('output_1', 'StateDict');
+        this.addOutput('output_2', 'StateDict');
+
+        this.addProperty('name', 'decide', 'string');
+
+        this.name = this.addWidget('text', 'name', 'decide', function (v) {
+          self.properties.name = v;
+        });
+
+        this.title = 'LangGraphConditional Node';
+        this.desc = 'Custom Node with Condition';
+        this.additionalOutputs = 2;
+        this.additionalInputs = 1;
+      }
+
+      LangGraphConditionalNode.prototype = Object.create(
+        LiteGraph.LGraphNode.prototype,
+      );
+
+      LangGraphConditionalNode.prototype.addOutputPort = function () {
+        this.additionalOutputs++;
+        this.addOutput('output_' + this.additionalOutputs, 'StateDict');
+        this.configure(this.serialize());
+      };
+
+      LangGraphConditionalNode.prototype.removeOutputPort = function () {
+        if (this.additionalOutputs > 2) {
+          this.removeOutput(this.outputs.length - 1);
+          this.additionalOutputs--;
+          this.configure(this.serialize());
+        }
+      };
+
+      LangGraphConditionalNode.prototype.addInputPort = function () {
+        this.additionalInputs++;
+        this.addInput('input_' + this.additionalInputs, 'StateDict');
+        this.configure(this.serialize());
+      };
+
+      LangGraphConditionalNode.prototype.removeInputPort = function () {
+        if (this.additionalInputs > 1) {
+          this.removeInput(this.inputs.length - 1);
+          this.additionalInputs--;
+          this.configure(this.serialize());
+        }
+      };
+
+      LangGraphConditionalNode.prototype.onContextMenu = function (
+        menu,
+        options,
+      ) {
+        const self = this;
+        this.addContextMenuNodeProperties(menu);
+        menu.addSeparator();
+
+        menu.addItem('Add Input', null, function () {
+          self.addInputPort();
+        });
+
+        if (this.additionalOutputs > 0) {
+          menu.addItem('Remove Input', null, function () {
+            self.removeInputPort();
+          });
+        }
+
+        menu.addItem('Add Output', null, function () {
+          self.addOutputPort();
+        });
+
+        if (this.additionalOutputs > 0) {
+          menu.addItem('Remove Output', null, function () {
+            self.removeOutputPort();
+          });
+        }
+      };
+
+      LiteGraph.registerNodeType(
+        'langgraph/LangGraphConditionalNode',
+        LangGraphConditionalNode,
+      );
+
+      function LangGraphEndNode() {
+        LiteGraph.LGraphNode.call(this);
+
+        const self = this;
+
+        this.addInput('input', 'StateDict');
+        this.addProperty('END', 'END', 'string');
+
+        this.name = this.addWidget('text', 'name', 'END', function (v) {
+          self.properties.name = v;
+        });
+
+        this.title = 'LangGraph END Node';
+        this.desc = 'END node';
+        this.additionalInputs = 1;
+      }
+
+      LangGraphEndNode.prototype = Object.create(
+        LiteGraph.LGraphNode.prototype,
+      );
+
+      LangGraphEndNode.prototype.addOutputPort = function () {};
+
+      LangGraphEndNode.prototype.removeOutputPort = function () {};
+
+      LangGraphEndNode.prototype.addInputPort = function () {
+        this.additionalInputs++;
+        this.addInput('input_' + this.additionalInputs, 'StateDict');
+        this.configure(this.serialize());
+      };
+
+      LangGraphEndNode.prototype.removeInputPort = function () {
+        if (this.additionalInputs > 1) {
+          this.removeInput(this.inputs.length - 1);
+          this.additionalInputs--;
+          this.configure(this.serialize());
+        }
+      };
+
+      LangGraphEndNode.prototype.onContextMenu = function (menu, options) {
+        const self = this;
+        this.addContextMenuNodeProperties(menu);
+        menu.addSeparator();
+
+        menu.addItem('Add Input', null, function () {
+          self.addInputPort();
+        });
+
+        if (this.additionalInputs > 0) {
+          menu.addItem('Remove Input', null, function () {
+            self.removeInputPort();
+          });
+        }
+      };
+
+      LiteGraph.registerNodeType(
+        'langgraph/LangGraphEndNode',
+        LangGraphEndNode,
+      );
+
+      const oldGetNodeMenuOptions = LGraphCanvas.prototype.getNodeMenuOptions;
+
+      LGraphCanvas.prototype.getNodeMenuOptions = function (node) {
+        const self = this;
+        const options = oldGetNodeMenuOptions.call(this, node);
+        options.push(null); // Separator
+
+        options.push({
+          content: 'Add Input',
+          callback: function () {
+            node.addInputPort();
+            self.setDirty(true);
+          },
+        });
+
+        if (node.additionalInputs > 0) {
+          options.push({
+            content: 'Remove Input',
+            callback: function () {
+              node.removeInputPort();
+              self.setDirty(true);
+            },
+          });
+        }
+
+        options.push({
+          content: 'Add Output',
+          callback: function () {
+            node.addOutputPort();
+            self.setDirty(true);
+          },
+        });
+
+        if (node.additionalOutputs > 0) {
+          options.push({
+            content: 'Remove Output',
+            callback: function () {
+              node.removeOutputPort();
+              self.setDirty(true);
+            },
+          });
+        }
+
+        return options;
+      };
+
+      LGraphCanvas.onLoadWorkflow = function (info, entry, mouse_event) {
+        litegraphApi.loadWorkflow('workflow');
+        return '';
+      };
+
+      LGraphCanvas.onSaveWorkflow = function (info, entry, mouse_event) {
+        litegraphApi.saveWorkflow('workflow');
+        return '';
+      };
+
+      LGraphCanvas.onCompile = function (info, entry, mouse_event) {
+        var g = graph.serialize();
+
+        var code = 'import { StateGraph, END } from "@langchain/langgraph";\n';
+        code += 'import { GraphState } from "./types";\n\n';
+
+        code += '// Create the workflow\n';
+        code += 'const workflow = new StateGraph<GraphState>(GraphState);\n';
+
+        code += '\n// Define the nodes\n';
+        for (var nodeOrderId = 0; nodeOrderId < g.nodes.length; nodeOrderId++) {
+          if (g.nodes[nodeOrderId].type != 'langgraph/LangGraphNode') continue;
+          const nodeName = g.nodes[nodeOrderId].properties.name;
+          code += `workflow.addNode("${nodeName}", ${nodeName}); // ${nodeName}\n`;
+        }
+
+        code += '\n// Build graph\n';
+        for (var nodeOrderId = 0; nodeOrderId < g.nodes.length; nodeOrderId++) {
+          if (g.nodes[nodeOrderId].type == 'langgraph/LangGraphEndNode')
+            continue;
+
+          var isEntryPoint = isNodeEntryPoint(g, nodeOrderId);
+
+          if (g.nodes[nodeOrderId].type == 'langgraph/LangGraphNode') {
+            if (isEntryPoint) {
+              code += `workflow.setEntryPoint("${g.nodes[nodeOrderId].properties.name}");\n`;
+            }
+
+            var nextNodeNames = getNodeValues(g, nodeOrderId, 'next', 'name');
+            var nextNodeTypes = getNodeValues(g, nodeOrderId, 'next', 'type');
+
+            var currNodeName = g.nodes[nodeOrderId].properties.name;
+            if (
+              nextNodeNames.length > 0 &&
+              nextNodeTypes[0] != 'langgraph/LangGraphConditionalNode'
+            ) {
+              var nextNodeName = nextNodeNames[0];
+              var nextNodeText = nextNodeName == 'END' ? 'END' : `"${nextNodeName}"`;
+              code += `workflow.addEdge("${currNodeName}", ${nextNodeText});\n`;
+            }
+          } else {
+            var nextNodeNames = getNodeValues(g, nodeOrderId, 'next', 'name');
+            var currNodeName = g.nodes[nodeOrderId].properties.name;
+            var conditionalEdgeMapping = '';
+            for (var i = 0; i < nextNodeNames.length; i++) {
+              var nextNodeName = nextNodeNames[i];
+              conditionalEdgeMapping +=
+                nextNodeName == 'END'
+                  ? `        "end": END,\n`
+                  : `        "${nextNodeName}": "${nextNodeName}",\n`;
+            }
+            if (isEntryPoint) {
+              code += `workflow.setConditionalEntryPoint(\n`;
+              code += `    ${currNodeName},\n`;
+              code += `    {\n${conditionalEdgeMapping}    }\n);\n`;
+            } else {
+              var prevNodeNames = getNodeValues(g, nodeOrderId, 'prev', 'name');
+              code += `workflow.addConditionalEdges(\n`;
+              code += `    "${prevNodeNames[0]}",\n`;
+              code += `    ${currNodeName},\n`;
+              code += `    {\n${conditionalEdgeMapping}    }\n);\n`;
+            }
+          }
+        }
+
+        code += '\n// Compile the workflow\n';
+        code += 'const app = workflow.compile();\n\n';
+        code += 'export { app };';
+
+        console.log('Generated TypeScript code:', code);
+        litegraphApi.saveCode(code);
+        return code;
+      };
+
+      function getNextNodeText(nextNodeName) {
+        var nextNodeText = nextNodeName == 'END' ? 'END' : `"${nextNodeName}"`;
+        return nextNodeText;
+      }
+
+      function isNodeEntryPoint(g, nodeOrderId) {
+        var entryPoint = 0;
+        for (var j = 0; j < g.nodes[nodeOrderId].inputs.length; j++) {
+          if (g.nodes[nodeOrderId].inputs[j].link != null) {
+            entryPoint++;
+          }
+        }
+        entryPoint = entryPoint == 0;
+        return entryPoint;
+      }
+
+      function getNodeValues(g, nodeOrderId, direction = 'next', key = 'name') {
+        var nodeValues = [];
+        var ports =
+          direction == 'next'
+            ? g.nodes[nodeOrderId].outputs
+            : g.nodes[nodeOrderId].inputs;
+
+        for (var j = 0; j < ports.length; j++) {
+          if (
+            direction == 'next' &&
+            (ports[j].links == null || ports[j].links.length == 0)
+          )
+            continue;
+          if (direction == 'prev' && ports[j].link == null) continue;
+
+          var linkOrderId = -1;
+          var linkId = -1;
+          if (direction == 'next') {
+            linkId = ports[j].links[0];
+          } else {
+            linkId = ports[j].link;
+          }
+          
+          for (var k = 0; k < g.links.length; k++) {
+            if (g.links[k][0] == linkId) {
+              linkOrderId = k;
+              break;
+            }
+          }
+
+          if (g.links[linkOrderId][0] == linkId) {
+            var targetId =
+              direction == 'next'
+                ? g.links[linkOrderId][3]
+                : g.links[linkOrderId][1];
+            for (var k = 0; k < g.nodes.length; k++) {
+              if (g.nodes[k].id == targetId) {
+                var output = g.nodes[k].properties.name;
+                if (g.nodes[k].type == 'langgraph/LangGraphEndNode') {
+                  output = 'END';
+                }
+                if (key == 'name') {
+                  nodeValues.push(output);
+                } else {
+                  nodeValues.push(g.nodes[k].type);
+                }
+                break;
+              }
+            }
+          }
+        }
+        return nodeValues;
+      }
+
+      LGraphCanvas.prototype.getCanvasMenuOptions = function () {
+        var that = this;
+        var options = [
+          {
+            content: 'Add Node',
+            has_submenu: true,
+            callback: LGraphCanvas.onMenuAdd,
+          },
+          { content: 'Add Group', callback: LGraphCanvas.onGroupAdd },
+          { content: 'Compile', callback: LGraphCanvas.onCompile },
+          { content: 'Load', callback: LGraphCanvas.onLoadWorkflow },
+          { content: 'Save', callback: LGraphCanvas.onSaveWorkflow },
+        ];
+
+        if (Object.keys(this.selected_nodes).length > 1) {
+          options.push({
+            content: 'Align',
+            has_submenu: true,
+            callback: LGraphCanvas.onGroupAlign,
+          });
+        }
+
+        if (this._graph_stack && this._graph_stack.length > 0) {
+          options.push(null, {
+            content: 'Close subgraph',
+            callback: this.closeSubgraph.bind(this),
+          });
+        }
+
+        return options;
+      };
+
+      function clearMenu() {
+        const registeredNodes = Object.keys(LiteGraph.registered_node_types);
+        for (var i = 0; i < registeredNodes.length; i++) {
+          if (!registeredNodes[i].toLowerCase().startsWith('langgraph')) {
+            LiteGraph.unregisterNodeType(registeredNodes[i]);
+          }
+        }
+      }
+
+      function setupEditorCanvas() {
+        var editor = document.getElementById('editor');
+
+        const ratio = window.devicePixelRatio;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        editor.width = width;
+        editor.height = height;
+
+        editor.style.width = width + 'px';
+        editor.style.height = height + 'px';
+      }
+    </script>
+  </head>
+
+  <body style="margin: 0px">
+    <canvas
+      id="editor"
+      width="1024"
+      height="720"
+      style="border: 0px solid"
+    ></canvas>
+    <script>
+      var graph = new LGraph();
+      var canvas = new LGraphCanvas('#editor', graph);
+      setupEditorCanvas(canvas);
+      clearMenu();
+
+      graph.start();
+
+      console.log('🚀 LangGraph Editor TypeScript - Ready!');
+      console.log('📝 This editor generates TypeScript code');
+      console.log(
+        "🎨 Right-click to add nodes, use 'Compile' to generate TypeScript code",
+      );
+    </script>
+  </body>
+</html>
